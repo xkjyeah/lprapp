@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ALPR Online - License Plate Recognition</title>
+    <link rel="icon" type="image/svg+xml" href="./vite.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/lprapp/assets/index-CoU4XP2Q.js"></script>
+    <link rel="stylesheet" crossorigin href="/lprapp/assets/index-CnygMzl-.css">
+  </head>
+  <body>
+    <div id="app">
+      <!-- Top Navigation Header -->
+      <header class="app-header">
+        <div class="header-top">
+          <div class="brand">
+            <div class="logo-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+                <path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+                <path d="M5 17h-2v-6l2 -5h9l4 5h1a2 2 0 0 1 2 2v4h-2m-4 0h-6" />
+                <circle cx="16.5" cy="7.5" r="2.5" fill="#10b981" stroke="none" />
+              </svg>
+            </div>
+            <div>
+              <h1>ALPR Online</h1>
+            </div>
+          </div>
+
+          <div class="header-status">
+            <label class="gpu-checkbox-label" title="Enable WebGPU provider for YOLO detector (off by default)">
+              <input type="checkbox" id="gpuToggle" />
+              <span class="gpu-label-text">Enable GPU</span>
+            </label>
+          </div>
+        </div>
+
+        <div id="engineStatusBadge" class="status-badge loading">
+          <span class="status-dot"></span>
+          <span id="engineStatusText">Initializing Wasm engine...</span>
+        </div>
+      </header>
+
+      <!-- Main Layout: Full Height Split View -->
+      <main class="main-container">
+        
+        <!-- Left Panel: Textarea scaled to fit the height of the page -->
+        <section class="left-panel">
+          <div class="panel-header">
+            <div class="panel-title-row">
+              <h2>Target License Plates</h2>
+            </div>
+            <p class="panel-desc">Paste license plates below (one per line). Green tick if in list, red cross if unlisted.</p>
+            
+            <!-- Prominent action bar next to the textarea -->
+            <div class="plate-action-bar">
+              <button id="btnRecognize" class="btn btn-primary btn-recognize" title="Start Camera and Plate Recognition" disabled>
+                <span class="btn-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M3 7a2 2 0 0 1 2 -2h3l2 -2h4l2 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z" />
+                  </svg>
+                </span>
+                <span id="btnRecognizeText">Recognize!</span>
+              </button>
+            </div>
+
+            <div class="plate-secondary-bar">
+              <button id="btnMobileSampleCar" class="btn btn-secondary btn-sm" title="Test with sample car photos">
+                🚗 Try Sample Car
+              </button>
+              <label class="btn btn-secondary btn-sm upload-btn" title="Upload a vehicle picture">
+                <input type="file" id="mobileFileInput" accept="image/*" style="display:none;" />
+                📸 Upload Photo
+              </label>
+            </div>
+          </div>
+
+          <!-- The Textarea scaled to fit the page height -->
+          <div class="textarea-wrapper">
+            <textarea
+              id="platesTextarea"
+              class="plates-textarea"
+              placeholder="CAL8942&#10;ABC1234&#10;XYZ999&#10;Paste any number of license plates here..."
+              spellcheck="false"
+              autocomplete="off"
+            ></textarea>
+            
+            <div class="textarea-footer">
+              <span class="footer-tip">💡 Matches are whitespace and case-insensitive</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right Panel: Camera & Live Recognition Viewport -->
+        <section class="right-panel">
+          <!-- Control Bar for Viewport -->
+          <div class="viewport-toolbar">
+            <div class="toolbar-left">
+              <!-- Close / Back Button (visible when camera or test view overlays screen) -->
+              <button id="btnCloseOverlay" class="btn btn-ghost btn-close-overlay" title="Close Camera / Return to Target Plates">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+                <span class="btn-close-text">Close</span>
+              </button>
+
+              <!-- Camera Selector -->
+              <div class="camera-select-wrap">
+                <label for="cameraSelect" class="sr-only">Camera</label>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M15 10l4.553 -2.276a1 1 0 0 1 1.447 .894v6.764a1 1 0 0 1 -1.447 .894l-4.553 -2.276v-4z" />
+                  <rect x="3" y="6" width="12" height="12" rx="2" />
+                </svg>
+                <select id="cameraSelect" class="camera-select">
+                  <option value="prefer-environment">Forward Facing Camera (Preferred)</option>
+                </select>
+              </div>
+
+              <!-- Test Sample Dropdown / Buttons -->
+              <div class="sample-actions">
+                <div class="sample-select-wrap">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                  <select id="sampleSelect" class="sample-select" title="Choose from 17 sample car photos">
+                    <option value="/samples/car_cal8942.jpg" selected>🚗 Car 1 (CAL8942)</option>
+                    <option value="/samples/car_b391klt.jpg">🚗 Car 2 (B391KLT)</option>
+                    <option value="/samples/photos/IMG20260923200603.jpg">📸 Photo 1 (0603)</option>
+                    <option value="/samples/photos/IMG20260923200608.jpg">📸 Photo 2 (0608)</option>
+                    <option value="/samples/photos/IMG20260923200610.jpg">📸 Photo 3 (0610)</option>
+                    <option value="/samples/photos/IMG20260923200618.jpg">📸 Photo 4 (0618)</option>
+                    <option value="/samples/photos/IMG20260923200621.jpg">📸 Photo 5 (0621)</option>
+                    <option value="/samples/photos/IMG20260923200627.jpg">📸 Photo 6 (0627)</option>
+                    <option value="/samples/photos/IMG20260923200629.jpg">📸 Photo 7 (0629)</option>
+                    <option value="/samples/photos/IMG20260923200637.jpg">📸 Photo 8 (0637)</option>
+                    <option value="/samples/photos/IMG20260923200640.jpg">📸 Photo 9 (0640)</option>
+                    <option value="/samples/photos/IMG20260923200643.jpg">📸 Photo 10 (0643)</option>
+                    <option value="/samples/photos/IMG20260924212054.jpg">📸 Photo 11 (2054 - 2-Line)</option>
+                    <option value="/samples/photos/IMG20260924212103.jpg">📸 Photo 12 (2103 - 2-Line)</option>
+                    <option value="/samples/photos/IMG20260924212121.jpg">📸 Photo 13 (2121 - 2-Line)</option>
+                    <option value="/samples/photos/IMG20260924212156.jpg">📸 Photo 14 (2156 - 2-Line)</option>
+                    <option value="/samples/photos/IMG20260924212159.jpg">📸 Photo 15 (2159 - 2-Line)</option>
+                  </select>
+                </div>
+                <button id="btnPrevSample" class="btn btn-ghost btn-xs" title="Previous sample photo">◀</button>
+                <button id="btnNextSample" class="btn btn-ghost btn-xs" title="Next sample photo">▶</button>
+                <label class="btn btn-ghost btn-xs upload-btn" title="Upload a vehicle picture">
+                  <input type="file" id="fileInput" accept="image/*" style="display:none;" />
+                  Upload Photo
+                </label>
+              </div>
+            </div>
+
+            <div class="toolbar-right">
+              <label class="gpu-checkbox-label toolbar-gpu" title="Enable WebGPU provider for YOLO detector (off by default)">
+                <input type="checkbox" id="gpuToggleToolbar" />
+                <span class="gpu-label-text">GPU</span>
+              </label>
+              <div class="perf-stats">
+                <span id="scanFpsText">-- FPS</span>
+                <span class="perf-divider">•</span>
+                <span id="scanLatencyText">-- ms</span>
+                <span class="perf-divider">•</span>
+                <span id="scanResText">Max 1080px</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Video & Canvas Viewport Container -->
+          <div class="viewport-container" id="viewportContainer">
+            <video id="videoElement" playsinline autoplay muted></video>
+            <img id="staticImageElement" alt="Static Test Preview" style="display:none;" />
+            <canvas id="overlayCanvas"></canvas>
+
+            <!-- Idle / Getting Started Overlay -->
+            <div id="idleOverlay" class="idle-overlay">
+              <div class="idle-card">
+                <div class="idle-icon-wrap">
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M3 7a2 2 0 0 1 2 -2h3l2 -2h4l2 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z" />
+                  </svg>
+                </div>
+                <h3>Camera Stream Inactive</h3>
+                <p>Click <strong class="text-primary">"Recognize!"</strong> to start streaming pictures from your camera.</p>
+                <div class="idle-actions">
+                  <button id="btnIdleStart" class="btn btn-primary">Start Camera</button>
+                  <button id="btnIdleSample" class="btn btn-secondary">Try Sample Car</button>
+                </div>
+                <div class="idle-features">
+                  <span>✓ Max 1080px resolution fitting</span>
+                  <span>✓ Green tick for listed plates</span>
+                  <span>✓ Red cross for unlisted plates</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recognition Active Indicator Badge -->
+            <div id="streamBadge" class="stream-active-badge" style="display:none;">
+              <span class="pulsing-record-dot"></span>
+              <span id="streamBadgeText">LIVE RECOGNIZING</span>
+            </div>
+
+            <!-- Resume Camera Feed Floating Button (when camera feed is frozen by user tap) -->
+            <button id="btnResumeCamera" class="resume-camera-btn" style="display:none;" aria-label="Resume camera feed">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              <span>Resume camera feed</span>
+            </button>
+
+            <!-- Floating Pinch-to-Zoom Indicator Badge -->
+            <div id="zoomBadge" class="zoom-badge" style="display:none;">
+              <span id="zoomBadgeText">1.0×</span>
+            </div>
+
+            <!-- iOS Manual Shutter / Tap to Detect Button -->
+            <button id="btnTapToDetect" class="tap-to-detect-btn" style="display:none;" aria-label="Tap to Detect">
+              <span class="shutter-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M3 7a2 2 0 0 1 2 -2h3l2 -2h4l2 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z" />
+                </svg>
+              </span>
+              <span id="btnTapToDetectText" class="shutter-text">Tap to Detect</span>
+            </button>
+
+            <!-- Static Image Simulation Controls (Zoom & Pan) -->
+            <div id="staticZoomControls" class="static-zoom-controls" style="display:none;" role="toolbar" aria-label="Static Image Zoom and Pan Controls">
+              <div class="zoom-btn-group">
+                <button id="btnStaticPanLeft" class="zoom-ctrl-btn zoom-btn-icon" title="Move Left (Pan Left) [←]">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                  </svg>
+                </button>
+                <button id="btnStaticPanUp" class="zoom-ctrl-btn zoom-btn-icon" title="Move Up (Pan Up) [↑]">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                  </svg>
+                </button>
+                <button id="btnStaticPanCenter" class="zoom-ctrl-btn zoom-btn-icon" title="Reset Pan to Center [0]">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M12 3v3m0 12v3M3 12h3m12 0h3"></path>
+                  </svg>
+                </button>
+                <button id="btnStaticPanDown" class="zoom-ctrl-btn zoom-btn-icon" title="Move Down (Pan Down) [↓]">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <button id="btnStaticPanRight" class="zoom-ctrl-btn zoom-btn-icon" title="Move Right (Pan Right) [→]">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </button>
+              </div>
+
+              <div class="zoom-divider"></div>
+
+              <div class="zoom-btn-group">
+                <button id="btnStaticZoomOut" class="zoom-ctrl-btn zoom-btn-icon" title="Zoom Out [-]">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
+                <span id="staticZoomLevelText" class="zoom-level-text" title="Current Zoom Factor">1.0×</span>
+                <button id="btnStaticZoomIn" class="zoom-ctrl-btn zoom-btn-icon" title="Zoom In [+]">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
+              </div>
+
+              <div class="zoom-divider"></div>
+
+              <div class="zoom-presets">
+                <button class="zoom-preset-btn active" data-zoom="1.0" title="1× (Full View)">1×</button>
+                <button class="zoom-preset-btn" data-zoom="1.5" title="1.5× Zoom">1.5×</button>
+                <button class="zoom-preset-btn" data-zoom="2.0" title="2× Zoom">2×</button>
+                <button class="zoom-preset-btn" data-zoom="3.0" title="3× Zoom">3×</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Global Component Loading Overlay (YOLO + PaddleOCR) -->
+    <div id="appLoadingOverlay" class="app-loading-overlay">
+      <div class="loading-modal">
+        <div class="loading-logo-wrap">
+          <div class="loading-pulse-ring"></div>
+          <div class="loading-icon-badge">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+              <path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+              <path d="M5 17h-2v-6l2 -5h9l4 5h1a2 2 0 0 1 2 2v4h-2m-4 0h-6" />
+              <circle cx="16.5" cy="7.5" r="2.5" fill="#10b981" stroke="none" />
+            </svg>
+          </div>
+        </div>
+
+        <h2 class="loading-title">Initializing ALPR Engine</h2>
+        <p class="loading-subtitle">Loading in-browser neural networks into Web Worker...</p>
+
+        <!-- Components checklist -->
+        <div class="loading-components">
+          <div id="compItemYolo" class="comp-item loading">
+            <div class="comp-status-icon">
+              <span class="comp-spinner"></span>
+              <span class="comp-check">✓</span>
+            </div>
+            <div class="comp-info">
+              <div class="comp-name">YOLOv8-OBB Detector</div>
+              <div class="comp-desc" id="compDescYolo">Loading license plate detector...</div>
+            </div>
+          </div>
+
+          <div id="compItemPaddle" class="comp-item pending">
+            <div class="comp-status-icon">
+              <span class="comp-spinner"></span>
+              <span class="comp-check">✓</span>
+            </div>
+            <div class="comp-info">
+              <div class="comp-name">PaddleOCR Engine</div>
+              <div class="comp-desc" id="compDescPaddle">Waiting for detector...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live status bar -->
+        <div class="loading-status-bar">
+          <span class="loading-status-spinner"></span>
+          <span id="loadingStatusText">Configuring runtime...</span>
+        </div>
+
+        <!-- Optional Error / Fallback Box if loading fails -->
+        <div id="loadingErrorBox" class="loading-error-box" style="display: none;">
+          <p id="loadingErrorMsg">Initialization error</p>
+          <button id="btnDismissLoadingOverlay" class="btn btn-secondary btn-sm">Dismiss & Continue</button>
+        </div>
+      </div>
+    </div>
+
+  </body>
+</html>
