@@ -5,7 +5,7 @@
     "groundTruth": [
       "CAL8942"
     ],
-    "durationMs": 272,
+    "durationMs": 527,
     "detections": [
       {
         "text": "CAL8942",
@@ -28,7 +28,7 @@
     "groundTruth": [
       "B391KLT"
     ],
-    "durationMs": 166,
+    "durationMs": 366,
     "detections": [
       {
         "text": "B39IKLT",
@@ -53,7 +53,7 @@
       "SMJ6650C",
       "SBU999J"
     ],
-    "durationMs": 222,
+    "durationMs": 462,
     "detections": [
       {
         "text": "SDN6618H",
@@ -103,7 +103,7 @@
       "SMJ6650C",
       "ES3960A"
     ],
-    "durationMs": 187,
+    "durationMs": 344,
     "detections": [
       {
         "text": "SMJ665OC",
@@ -142,7 +142,7 @@
       "SNF9945S",
       "SLX9361E"
     ],
-    "durationMs": 148,
+    "durationMs": 327,
     "detections": [
       {
         "text": "SML6579R",
@@ -168,7 +168,7 @@
       "SKG516L",
       "SLX9361E"
     ],
-    "durationMs": 175,
+    "durationMs": 402,
     "detections": [
       {
         "text": "ES3960A",
@@ -231,7 +231,7 @@
       "SNF9945S",
       "SKG516L"
     ],
-    "durationMs": 149,
+    "durationMs": 335,
     "detections": [
       {
         "text": "SNF9945S",
@@ -269,7 +269,7 @@
       "SNF5763B",
       "SMK8800G"
     ],
-    "durationMs": 136,
+    "durationMs": 272,
     "detections": [
       {
         "text": "SJV7999M",
@@ -292,7 +292,7 @@
     "groundTruth": [
       "SLE5647H"
     ],
-    "durationMs": 137,
+    "durationMs": 296,
     "detections": [
       {
         "text": "SLE5647H",
@@ -317,7 +317,7 @@
       "SNY9977A",
       "SMU5178Z"
     ],
-    "durationMs": 150,
+    "durationMs": 297,
     "detections": [
       {
         "text": "SMU5178Z",
@@ -354,7 +354,7 @@
       "SJS561D",
       "SND33T"
     ],
-    "durationMs": 135,
+    "durationMs": 267,
     "detections": [
       {
         "text": "SJS561D",
@@ -377,7 +377,7 @@
     "groundTruth": [
       "SND33T"
     ],
-    "durationMs": 136,
+    "durationMs": 339,
     "detections": [
       {
         "text": "SND33T",
@@ -403,7 +403,7 @@
       "SMZ7912G",
       "SNX6148B"
     ],
-    "durationMs": 176,
+    "durationMs": 475,
     "detections": [
       {
         "text": "SMK8837M",
@@ -454,7 +454,7 @@
       "SMZ6023D",
       "SNA4496E"
     ],
-    "durationMs": 165,
+    "durationMs": 368,
     "detections": [
       {
         "text": "6516L",
@@ -504,7 +504,7 @@
       "SNC5016R",
       "SMK4973D"
     ],
-    "durationMs": 171,
+    "durationMs": 314,
     "detections": [
       {
         "text": "SNX155",
@@ -554,7 +554,7 @@
       "SBR8808R",
       "SND33T"
     ],
-    "durationMs": 162,
+    "durationMs": 293,
     "detections": [
       {
         "text": "SND33T",
@@ -591,7 +591,7 @@
       "SBR8808R",
       "SNN5085H"
     ],
-    "durationMs": 160,
+    "durationMs": 283,
     "detections": [
       {
         "text": "SNN5085H",
