@@ -102,7 +102,7 @@ function sleep(ms) {
         try {
           const ort = window.ort || (await import('/lprapp/node_modules/onnxruntime-web/dist/ort.bundle.min.mjs'));
           window.__ort = ort;
-          const session = await ort.InferenceSession.create('/lprapp/lpr/models/license_plate_detector_yolov8n.onnx', {
+          const session = await ort.InferenceSession.create('/lprapp/lpr/models/license_plate_detector_yolov8_obb_int8.onnx', {
             executionProviders: ['wasm'],
             graphOptimizationLevel: 'disabled',
             intraOpNumThreads: 1
@@ -180,8 +180,9 @@ function sleep(ms) {
           const yoloDurMs = Math.round(performance.now() - t0);
 
           const outData = outMap.output0.data;
-          // shape: (1, 5, 5040)
-          const numAnchors = 5040;
+          const numAnchors = outMap.output0.dims ? outMap.output0.dims[2] : 5040;
+          const numChannels = outMap.output0.dims ? outMap.output0.dims[1] : 6;
+          const isObb = numChannels >= 6;
           const candidates = [];
           for (let a = 0; a < numAnchors; a++) {
             const score = outData[4 * numAnchors + a];
@@ -190,8 +191,9 @@ function sleep(ms) {
               const cy = outData[1 * numAnchors + a];
               const w = outData[2 * numAnchors + a];
               const h = outData[3 * numAnchors + a];
+              const angle = isObb ? outData[5 * numAnchors + a] : 0;
               candidates.push({
-                cx, cy, w, h, score,
+                cx, cy, w, h, score, angle,
                 left: cx - w / 2,
                 top: cy - h / 2,
                 right: cx + w / 2,

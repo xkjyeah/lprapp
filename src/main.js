@@ -1349,11 +1349,10 @@ function drawYoloBoundingBox(ctx, rawQuad, score, scaleX, scaleY, renderX, rende
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Draw small "YOLO xx%" label badge at the bottom-left of the box
-  const xs = quad.map((p) => p[0]);
-  const ys = quad.map((p) => p[1]);
-  const minX = Math.min(...xs);
-  const maxY = Math.max(...ys);
+  // Draw oriented corner tick accents along the true perspective edges
+  drawOrientedCorners(ctx, quad, 'rgba(148, 163, 184, 0.9)');
+
+  // Draw small "YOLO xx%" label badge aligned along the oriented bottom edge (quad[3] -> quad[2])
   const scorePercent = score ? Math.round(score * 100) : 0;
   const tagText = scorePercent > 0 ? `YOLO ${scorePercent}%` : 'YOLO';
 
@@ -1362,21 +1361,32 @@ function drawYoloBoundingBox(ctx, rawQuad, score, scaleX, scaleY, renderX, rende
   const tagPaddingX = 6;
   const tagW = tagTextW + tagPaddingX * 2;
   const tagH = 16;
-  const tagX = Math.max(4, minX);
-  const tagY = maxY + 3;
 
-  // Draw tag pill background
+  // Bottom edge angle from quad[3] (Bottom-Left) to quad[2] (Bottom-Right)
+  const btmDx = quad[2][0] - quad[3][0];
+  const btmDy = quad[2][1] - quad[3][1];
+  const btmAngle = Math.atan2(btmDy, btmDx);
+
+  ctx.save();
+  ctx.translate(quad[3][0], quad[3][1]);
+  ctx.rotate(btmAngle);
+
+  // Draw tag pill background below bottom edge
   ctx.shadowBlur = 0;
   ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
   ctx.strokeStyle = 'rgba(148, 163, 184, 0.6)';
   ctx.lineWidth = 1;
-  roundRect(ctx, tagX, tagY, tagW, tagH, 3);
+  roundRect(ctx, 0, 4, tagW, tagH, 3);
   ctx.fill();
   ctx.stroke();
 
   // Draw tag text
   ctx.fillStyle = '#cbd5e1';
-  ctx.fillText(tagText, tagX + tagPaddingX, tagY + 11.5);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(tagText, tagPaddingX, 4 + tagH / 2);
+  ctx.restore();
+
   ctx.restore();
 }
 

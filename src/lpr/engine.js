@@ -2,6 +2,7 @@ import * as ort from 'onnxruntime-web';
 import { PaddleOCR } from '@paddleocr/paddleocr-js';
 import { letterbox, unletterboxQuad } from './preprocess.js';
 import { decodeYolov8 } from './decoder_yolov8.js';
+import { polygonIoU } from './nms.js';
 
 // Explicitly limit ONNX Runtime WebAssembly execution to strictly 1 CPU thread
 ort.env.wasm.numThreads = 1;
@@ -29,7 +30,13 @@ function dedupe(dets) {
   const out = [];
   dets.sort((p, q) => q.score - p.score);
   for (const d of dets) {
-    if (!out.some((k) => iou(d.box, k.box) > NMS_IOU)) {
+    const isDup = out.some((k) => {
+      if (d.quad && k.quad) {
+        return polygonIoU(d.quad, k.quad) > NMS_IOU;
+      }
+      return iou(d.box, k.box) > NMS_IOU;
+    });
+    if (!isDup) {
       out.push(d);
     }
   }
@@ -180,37 +187,52 @@ export class LprEngine {
   }
 
   async createSpotterSession(wantGpu) {
-    const spotterUrl = `${this.base}models/license_plate_detector_yolov11n_int8.onnx`;
+    const int8Url = `${this.base}models/license_plate_detector_yolov8_obb_int8.onnx`;
+    const fp32Url = `${this.base}models/license_plate_detector_yolov8_obb.onnx`;
 
     if (wantGpu) {
-      // First try disabled, then basic optimization to avoid Conv fusion layout bugs on WebGPU
-      for (const optLevel of ['disabled', 'basic', 'all']) {
-        try {
-          console.log(`Validating YOLOv11n-INT8 on WebGPU (graphOptimizationLevel: ${optLevel})...`);
-          const session = await ort.InferenceSession.create(spotterUrl, {
-            executionProviders: ['webgpu', 'wasm'],
-            graphOptimizationLevel: optLevel,
-          });
-          // Perform a quick warmup inference to verify WebGPU kernels actually execute without JSEP runtime failures
-          const dummyTensor = new ort.Tensor('float32', new Float32Array(1 * 3 * SPOT_H * SPOT_W), [1, 3, SPOT_H, SPOT_W]);
-          await session.run({ [session.inputNames[0]]: dummyTensor });
-          console.log(`WebGPU validation passed with graphOptimizationLevel: ${optLevel}`);
-          return { session, enableGpu: true };
-        } catch (err) {
-          console.warn(`WebGPU validation failed with optLevel '${optLevel}':`, err);
+      // First try FP32 then INT8 across optimization levels for WebGPU JSEP support
+      for (const modelUrl of [fp32Url, int8Url]) {
+        for (const optLevel of ['disabled', 'basic', 'all']) {
+          try {
+            console.log(`Validating YOLOv8-OBB on WebGPU (model: ${modelUrl}, optLevel: ${optLevel})...`);
+            const session = await ort.InferenceSession.create(modelUrl, {
+              executionProviders: ['webgpu', 'wasm'],
+              graphOptimizationLevel: optLevel,
+            });
+            // Perform a quick warmup inference to verify WebGPU kernels actually execute without JSEP runtime failures
+            const dummyTensor = new ort.Tensor('float32', new Float32Array(1 * 3 * SPOT_H * SPOT_W), [1, 3, SPOT_H, SPOT_W]);
+            await session.run({ [session.inputNames[0]]: dummyTensor });
+            console.log(`WebGPU validation passed with model '${modelUrl}' and optLevel '${optLevel}'`);
+            return { session, enableGpu: true };
+          } catch (err) {
+            console.warn(`WebGPU validation failed with model '${modelUrl}', optLevel '${optLevel}':`, err);
+          }
         }
       }
       console.warn('All WebGPU initialization attempts failed. Reverting to WASM provider.');
     }
 
-    const wasmSession = await ort.InferenceSession.create(spotterUrl, {
-      executionProviders: ['wasm'],
-      graphOptimizationLevel: 'disabled',
-      intraOpNumThreads: 1,
-      interOpNumThreads: 1,
-    });
-    console.log('YOLOv11n-INT8 initialized on WASM (1 CPU)');
-    return { session: wasmSession, enableGpu: false };
+    try {
+      const wasmSession = await ort.InferenceSession.create(int8Url, {
+        executionProviders: ['wasm'],
+        graphOptimizationLevel: 'disabled',
+        intraOpNumThreads: 1,
+        interOpNumThreads: 1,
+      });
+      console.log('YOLOv8-OBB INT8 initialized on WASM (1 CPU)');
+      return { session: wasmSession, enableGpu: false };
+    } catch (int8Err) {
+      console.warn('WASM INT8 load failed, falling back to FP32:', int8Err);
+      const wasmSession = await ort.InferenceSession.create(fp32Url, {
+        executionProviders: ['wasm'],
+        graphOptimizationLevel: 'disabled',
+        intraOpNumThreads: 1,
+        interOpNumThreads: 1,
+      });
+      console.log('YOLOv8-OBB FP32 initialized on WASM (1 CPU)');
+      return { session: wasmSession, enableGpu: false };
+    }
   }
 
   async setEnableGpu(enabled, onStatus) {
@@ -256,7 +278,7 @@ export class LprEngine {
     ort.env.wasm.numThreads = 1;
 
     const providerName = this.enableGpu ? 'WebGPU' : 'WASM';
-    if (onStatus) onStatus(`Loading license plate detector (YOLOv11n-INT8 on ${providerName})...`);
+    if (onStatus) onStatus(`Loading license plate detector (YOLOv8-OBB on ${providerName})...`);
     const { session, enableGpu } = await this.createSpotterSession(this.enableGpu);
     this.spotter = session;
     this.enableGpu = enableGpu;
@@ -277,24 +299,27 @@ export class LprEngine {
           numThreads: 1
         }
       });
-      console.log('PaddleOCR Wasm engine ready via CDN!');
-    } catch (cdnErr) {
-      console.warn('PaddleOCR CDN load failed, falling back to local files:', cdnErr);
+      console.log(`PaddleOCR Wasm engine ready via ${isOnline ? 'CDN' : 'local files'}!`);
+    } catch (primaryErr) {
+      console.warn('PaddleOCR primary load failed, attempting fallback:', primaryErr);
+      const fallbackDetUrl = isOnline ? `${baseUrl}models/PP-OCRv6_tiny_det_onnx_infer.tar` : CDN_PADDLE_DET;
+      const fallbackRecUrl = isOnline ? `${baseUrl}models/PP-OCRv6_tiny_rec_onnx_infer.tar` : CDN_PADDLE_REC;
+      const fallbackWasm = isOnline ? `${baseUrl}ort-wasm/` : CDN_ORT_WASM;
       try {
         this.paddleOcr = await PaddleOCR.create({
           textDetectionModelName: 'PP-OCRv6_tiny_det',
-          textDetectionModelAsset: { url: `${baseUrl}models/PP-OCRv6_tiny_det_onnx_infer.tar` },
+          textDetectionModelAsset: { url: fallbackDetUrl },
           textRecognitionModelName: 'PP-OCRv6_tiny_rec',
-          textRecognitionModelAsset: { url: `${baseUrl}models/PP-OCRv6_tiny_rec_onnx_infer.tar` },
+          textRecognitionModelAsset: { url: fallbackRecUrl },
           ortOptions: {
             backend: 'wasm',
-            wasmPaths: `${baseUrl}ort-wasm/`,
+            wasmPaths: fallbackWasm,
             numThreads: 1
           }
         });
-        console.log('PaddleOCR local fallback ready!');
-      } catch (localErr) {
-        console.error('PaddleOCR initialization error:', localErr);
+        console.log('PaddleOCR fallback ready!');
+      } catch (fallbackErr) {
+        console.error('PaddleOCR initialization error:', fallbackErr);
       }
     }
 
@@ -311,7 +336,7 @@ export class LprEngine {
       });
     } catch (err) {
       if (this.enableGpu) {
-        console.warn('YOLOv11 spotter run failed on WebGPU at runtime, falling back to WASM:', err);
+        console.warn('YOLOv8-OBB spotter run failed on WebGPU at runtime, falling back to WASM:', err);
         const { session, enableGpu } = await this.createSpotterSession(false);
         this.spotter = session;
         this.enableGpu = enableGpu;
@@ -331,7 +356,7 @@ export class LprEngine {
           .map((pt) => [pt[0] + ox, pt[1] + oy]);
         const box = boxOf(q);
         const aspect = box.width / Math.max(1, box.height);
-        return { quad: q, box, score: d.score, aspect };
+        return { quad: q, box, score: d.score, aspect, angle: d.angle };
       })
       .filter((d) => d.score >= thresh && d.aspect >= 0.8 && d.box.width >= 20 && d.box.height >= 10);
   }
@@ -481,7 +506,8 @@ export class LprEngine {
       score: d.score,
       box: d.box,
       quad: d.quad,
-      aspect: d.aspect
+      aspect: d.aspect,
+      angle: d.angle
     }));
     this.lastYoloDets = allYoloCandidates;
 
@@ -495,6 +521,7 @@ export class LprEngine {
         quad: ocrResult.refinedQuad || d.quad,
         yoloBox: d.box,
         yoloQuad: d.quad,
+        yoloAngle: d.angle,
         yoloScore: d.score,
         hasPaddleQuad: !!ocrResult.refinedQuad,
         text: ocrResult.text || '',
